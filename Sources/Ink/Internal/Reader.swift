@@ -4,6 +4,8 @@
 *  MIT license, see LICENSE file for details
 */
 
+import Foundation
+
 internal struct Reader {
     private let string: String
     private(set) var currentIndex: String.Index
@@ -188,5 +190,46 @@ private extension Reader {
         let nextIndex = string.index(after: currentIndex)
         guard nextIndex != string.endIndex else { return nil }
         return string[nextIndex]
+    }
+}
+extension Reader {
+    /// 获取从当前位置开始的指定数量字符，不会移动 currentIndex
+    /// - Parameter count: 想要获取的字符数量
+    /// - Returns: 获取到的字符子串（如果剩余字符不足，则返回实际能读到的全部字符）
+    func peekCharacters(count: Int) -> Substring {
+        // 使用 limitedBy 寻找目标终点，防止越界崩溃
+        let end = string.index(currentIndex, offsetBy: count, limitedBy: endIndex) ?? endIndex
+        return string[currentIndex..<end]
+    }
+    
+    func peekCharactersFromNext(count: Int) -> Substring {
+        // 1. 获取起始位置：当前索引 + 1，但不能超过 endIndex
+        let start = string.index(currentIndex, offsetBy: 1, limitedBy: endIndex) ?? endIndex
+        
+        // 2. 获取结束位置：从 start 开始往后数 count 个，同样不能超过 endIndex
+        let end = string.index(start, offsetBy: count, limitedBy: endIndex) ?? endIndex
+        
+        // 3. 返回子串
+        return string[start..<end]
+    }
+    
+    func isUnorderedListStart() -> Bool {
+        // 只需要看前两个字符即可判断是否符合 "- " 这种结构
+        let sample = String(peekCharactersFromNext(count: 2))
+        let pattern = #"^[-+*][ \t\n]"# // 匹配符号后跟空格或换行
+        return sample.range(of: pattern, options: .regularExpression) != nil
+    }
+    
+    /// 检查当前位置是否匹配有序列表标志
+    func isOrderedListStart() -> Bool {
+        // 获取当前位置往后的一段采样（比如取 5 个字符，足够覆盖 "123. " 了）
+        let sample = String(peekCharactersFromNext(count: 5))
+        
+        // 使用正则匹配采样字符串的开头
+        let pattern = #"^\d+\.\s+"#
+        let regex = try? NSRegularExpression(pattern: pattern)
+        
+        let range = NSRange(location: 0, length: sample.utf16.count)
+        return regex?.firstMatch(in: sample, options: [], range: range) != nil
     }
 }

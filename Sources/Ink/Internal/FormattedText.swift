@@ -114,7 +114,13 @@ private extension FormattedText {
                             skipCharacter()
                             continue
                         }
-
+                        
+                        if reader.isOrderedListStart() || reader.isUnorderedListStart() {
+                            //eat the newline
+                            reader.advanceIndex()
+                            break
+                        }
+                        
                         guard !nextCharacter.isAny(of: ["\n", "#", "<", "`", "-", "\r\n"]) else {
                             break
                         }
