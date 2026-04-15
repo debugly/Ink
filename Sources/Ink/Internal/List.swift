@@ -85,27 +85,72 @@ internal struct List: Fragment {
                     try addTextToLastItem()
                 }
             case \.isNumber:
-                guard case .ordered = list.kind else {
-                    try addTextToLastItem()
-                    continue
+                // 1. 获取当前行首的缩进
+                let currentIndentation = reader.distanceToLineStart
+                
+                // 2. 判定缩进回退：如果当前行缩进小于本级列表要求的深度
+                // 说明当前列表（可能是嵌套子列表）已经结束，必须立即 return，交还控制权
+                if currentIndentation < indentationLength {
+                    return list
+                }
+                
+                // 3. 判定类型冲突：如果当前是无序列表（-），但遇到了数字标识符模式
+                if case .unordered = list.kind {
+                    let backup = reader.currentIndex
+                    do {
+                        // 尝试前瞻：是否符合 "数字 + 标志位 + 空格" 的结构
+                        try reader.readCharacters(matching: \.isNumber, max: 9)
+                        _ = try reader.readCharacter(in: List.orderedListMarkers)
+                        
+                        
+                        // CommonMark 规范：如果数字后面紧跟标识符和空格，它就是一个新的列表起始
+                        if reader.currentCharacter.isSameLineWhitespace {
+                            reader.moveToIndex(backup)
+                            return list // 退出当前无序列表，让父级去处理这个有序列表项
+                        }
+                        reader.moveToIndex(backup)
+                    } catch {
+                        reader.moveToIndex(backup)
+                        // 匹配失败，说明只是普通数字开头的文本，走下方的文本追加逻辑
+                    }
                 }
 
-                let startIndex = reader.currentIndex
+                // 4. 处理同层级的有序列表项
+                if case .ordered = list.kind {
+                    let startIndex = reader.currentIndex
+                    do {
+                        try reader.readCharacters(matching: \.isNumber, max: 9)
+                        let foundMarker = try reader.readCharacter(in: List.orderedListMarkers)
 
-                do {
-                    try reader.readCharacters(matching: \.isNumber, max: 9)
-                    let foundMarker = try reader.readCharacter(in: List.orderedListMarkers)
+                        // 检查标识符是否一致（例如 . 变 ) 则视为新列表，需退出）
+                        guard foundMarker == list.listMarker else {
+                            reader.moveToIndex(startIndex)
+                            return list
+                        }
 
-                    guard foundMarker == list.listMarker else {
+                        if reader.didReachEnd {
+                            // 无内容，则先当做列表项
+                            // 成功消耗掉这一行作为新的 Item
+                            list.items.append(Item(text: .readLine(using: &reader)))
+                        } else {
+                            // 有内容则必须紧跟空格才是列表项
+                            guard reader.currentCharacter.isSameLineWhitespace else {
+                                reader.moveToIndex(startIndex)
+                                try addTextToLastItem()
+                                continue
+                            }
+
+                            try reader.readWhitespaces()
+                            // 成功消耗掉这一行作为新的 Item
+                            list.items.append(Item(text: .readLine(using: &reader)))
+                        }
+                    } catch {
+                        // 解析失败（例如只有数字没标点），回退并作为文本追加
                         reader.moveToIndex(startIndex)
-                        return list
+                        try addTextToLastItem()
                     }
-
-                    try reader.readWhitespaces()
-
-                    list.items.append(Item(text: .readLine(using: &reader)))
-                } catch {
-                    reader.moveToIndex(startIndex)
+                } else {
+                    // 5. 兜底逻辑：如果不属于上述情况，作为普通文本追加到上一个 Item
                     try addTextToLastItem()
                 }
             case "-", "*", "+":

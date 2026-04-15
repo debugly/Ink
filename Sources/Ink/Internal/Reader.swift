@@ -192,7 +192,25 @@ private extension Reader {
         return string[nextIndex]
     }
 }
+
 extension Reader {
+    // 探测当前字符距离当前行首的距离（不移动 currentIndex）
+    var distanceToLineStart: Int {
+        var distance = 0
+        var index = currentIndex
+        
+        // 从当前索引向前扫描，直到遇到换行符或字符串开头
+        while index > string.startIndex {
+            let previousIndex = string.index(before: index)
+            if string[previousIndex].isNewline {
+                break
+            }
+            distance += 1
+            index = previousIndex
+        }
+        return distance
+    }
+    
     /// 获取从当前位置开始的指定数量字符，不会移动 currentIndex
     /// - Parameter count: 想要获取的字符数量
     /// - Returns: 获取到的字符子串（如果剩余字符不足，则返回实际能读到的全部字符）
