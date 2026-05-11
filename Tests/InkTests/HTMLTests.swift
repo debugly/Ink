@@ -79,6 +79,18 @@ final class HTMLTests: XCTestCase {
         XCTAssertEqual(html, #"<p>Hello</p><img src="image.png"/><p>World</p>"#)
     }
 
+    func testTopLevelSelfClosingHTMLElementWithGreaterThanInAttribute() {
+        let html = MarkdownParser().html(from: """
+        Hello
+
+        <img alt="1 > 0" src="image.png"/>
+        <img src="https://img.shields.io/badge/NDK-%2027c%20-bc2a9c.svg">
+        World
+        """)
+
+        XCTAssertEqual(html, #"<p>Hello</p><img alt="1 > 0" src="image.png"/><img src="https://img.shields.io/badge/NDK-%2027c%20-bc2a9c.svg"><p>World</p>"#)
+    }
+
     func testInlineSelfClosingHTMLElement() {
         let html = MarkdownParser().html(from: #"Hello <img src="image.png"/> World"#)
         XCTAssertEqual(html, #"<p>Hello <img src="image.png"/> World</p>"#)
@@ -104,6 +116,16 @@ final class HTMLTests: XCTestCase {
         XCTAssertEqual(html, "<p>Hello</p><!-- Comment --><p>World</p>")
     }
 
+    func testHTMLCommentContainingGreaterThan() {
+        let html = MarkdownParser().html(from: """
+        Hello
+        <!-- 1 > 0 -->
+        World
+        """)
+
+        XCTAssertEqual(html, "<p>Hello</p><!-- 1 > 0 --><p>World</p>")
+    }
+
     func testHTMLEntities() {
         let html = MarkdownParser().html(from: """
         Hello &amp; welcome to &lt;Ink&gt;
@@ -124,9 +146,11 @@ extension HTMLTests {
             ("testIgnoringListsWithinInlineHTML", testIgnoringListsWithinInlineHTML),
             ("testInlineParagraphTagEndingCurrentParagraph", testInlineParagraphTagEndingCurrentParagraph),
             ("testTopLevelSelfClosingHTMLElement", testTopLevelSelfClosingHTMLElement),
+            ("testTopLevelSelfClosingHTMLElementWithGreaterThanInAttribute", testTopLevelSelfClosingHTMLElementWithGreaterThanInAttribute),
             ("testInlineSelfClosingHTMLElement", testInlineSelfClosingHTMLElement),
             ("testTopLevelHTMLLineBreak", testTopLevelHTMLLineBreak),
             ("testHTMLComment", testHTMLComment),
+            ("testHTMLCommentContainingGreaterThan", testHTMLCommentContainingGreaterThan),
             ("testHTMLEntities", testHTMLEntities)
         ]
     }

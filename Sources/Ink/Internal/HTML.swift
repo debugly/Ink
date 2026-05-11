@@ -66,6 +66,25 @@ internal struct HTML: Fragment {
 private extension Reader {
     typealias HTMLElement = (name: Substring, isSelfClosing: Bool)
 
+    static var voidElementNames: Set<String> {
+        return [
+            "area",
+            "base",
+            "br",
+            "col",
+            "embed",
+            "hr",
+            "img",
+            "input",
+            "link",
+            "meta",
+            "param",
+            "source",
+            "track",
+            "wbr"
+        ]
+    }
+
     mutating func readHTMLElement() throws -> HTMLElement {
         try read("<")
         let startIndex = currentIndex
@@ -74,13 +93,69 @@ private extension Reader {
             guard !currentCharacter.isWhitespace, currentCharacter != ">" else {
                 let name = characters(in: startIndex..<currentIndex)
                 try require(!name.isEmpty)
-                let suffix = try read(until: ">", allowLineBreaks: true)
+                let suffix = try readHTMLElementSuffix(forName: name)
 
                 guard name.last != "/" else {
                     return (name.dropLast(), true)
                 }
 
-                return (name, suffix.last == "/" || name == "!--")
+                return (name, suffix.last == "/" || name == "!--" || isVoidHTMLElement(named: name))
+            }
+
+            advanceIndex()
+        }
+
+        throw Error()
+    }
+
+    func isVoidHTMLElement(named name: Substring) -> Bool {
+        return Self.voidElementNames.contains(name.lowercased())
+    }
+
+    mutating func readHTMLElementSuffix(forName name: Substring) throws -> Substring {
+        let startIndex = currentIndex
+
+        guard name != "!--" else {
+            var previousCharacter: Character?
+            var characterBeforePrevious: Character?
+
+            while !didReachEnd {
+                let character = currentCharacter
+                let endIndex = currentIndex
+                advanceIndex()
+
+                if character == ">",
+                   previousCharacter == "-",
+                   characterBeforePrevious == "-" {
+                    return characters(in: startIndex..<endIndex)
+                }
+
+                characterBeforePrevious = previousCharacter
+                previousCharacter = character
+            }
+
+            throw Error()
+        }
+
+        var quote: Character?
+
+        while !didReachEnd {
+            let character = currentCharacter
+
+            if let activeQuote = quote {
+                if character == activeQuote {
+                    quote = nil
+                }
+            } else {
+                if character == "\"" || character == "'" {
+                    quote = character
+                }
+
+                if character == ">" {
+                    let endIndex = currentIndex
+                    advanceIndex()
+                    return characters(in: startIndex..<endIndex)
+                }
             }
 
             advanceIndex()
