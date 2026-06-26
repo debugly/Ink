@@ -18,7 +18,12 @@ struct Table: Fragment {
         var table = Table()
 
         while !reader.didReachEnd, !reader.currentCharacter.isNewline {
-            guard reader.currentCharacter == "|" else {
+            // 允许表格行前面有前导空白（没有紧贴左侧）：
+            // 读取完一行后，先跳过下一行行首的同行空白，再判断是否仍是表格行，
+            // 否则带缩进的表格会被拆成每行一个独立的表格。
+            reader.discardWhitespaces()
+
+            guard !reader.didReachEnd, reader.currentCharacter == "|" else {
                 break
             }
 
